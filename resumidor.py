@@ -1,17 +1,15 @@
 import os
 import requests
-from flask import Flask, render_template, request, session
+from flask import Flask, render_template, request, session, jsonify, send_from_directory
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from pypdf import PdfReader
 from google import genai
 from google.genai import types
 
-# Cargar las credenciales del archivo .env
 load_dotenv()
 
 app = Flask(__name__)
-# Llave secreta necesaria para poder usar el historial de sesión (session) en Flask
 app.secret_key = "byte_wave_secret_key_for_session_management"
 
 def extraer_texto_pdf(file_storage):
@@ -20,7 +18,9 @@ def extraer_texto_pdf(file_storage):
         lector = PdfReader(file_storage)
         texto_completo = ""
         for pagina in lector.pages:
-            texto_completo += pagina.extract_text() + "\n"
+            texto_extraido = pagina.extract_text()
+            if texto_extraido:
+                texto_completo += texto_extraido + "\n"
         return texto_completo
     except Exception as e:
         return None
@@ -28,7 +28,6 @@ def extraer_texto_pdf(file_storage):
 def extraer_texto_url(url):
     """Descarga una página web o foro y extrae el texto de los párrafos principales."""
     try:
-        # Simulamos un navegador para que los foros o blogs no nos bloqueen el acceso
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
         respuesta = requests.get(url, headers=headers, timeout=10)
         
@@ -37,11 +36,9 @@ def extraer_texto_url(url):
             
         soup = BeautifulSoup(respuesta.text, 'html.parser')
         
-        # Eliminamos elementos innecesarios del HTML para no saturar a la IA con basura
         for elemento in soup(["script", "style", "nav", "footer", "header", "aside"]):
             elemento.decompose()
             
-        # Extraemos el texto de todos los párrafos (<p>)
         parrafos = soup.find_all('p')
         texto_limpio = "\n".join([p.get_text() for p in parrafos])
         
@@ -71,7 +68,7 @@ def generar_resumen(texto_documento, enfoque):
             contents=texto_documento,
             config=types.GenerateContentConfig(
                 system_instruction=instruccion_sistema,
-                temperature=0.2  # Temperatura baja para garantizar precisión técnica
+                temperature=0.2 
             )
         )
         return response.text
@@ -80,12 +77,11 @@ def generar_resumen(texto_documento, enfoque):
 
 @app.route("/", methods=["GET", "POST"])
 def index():
-    # Inicializar la lista del historial en la sesión si no existe
     if 'historial' not in session:
         session['historial'] = []
         
     resumen_generado = None
-    tipo_entrada = "pdf"  # Estado por defecto
+    tipo_entrada = "pdf"  
     error_msg = None
     
     if request.method == "POST":
@@ -108,7 +104,6 @@ def index():
         elif tipo_entrada == "url":
             enlace = request.form.get("enlace_url")
             if enlace and (enlace.startswith("http://") or enlace.startswith("https://")):
-                # Acortamos el nombre para que se vea estético en el historial lateral
                 nombre_elemento = enlace.replace("https://", "").replace("http://", "").split('/')[0]
                 texto = extraer_texto_url(enlace)
                 
@@ -119,15 +114,12 @@ def index():
             else:
                 error_msg = "Inserte una dirección URL válida que comience con http:// o https://"
         
-        # Si el proceso fue exitoso, guardamos el elemento en el historial de la sesión
         if resumen_generado and not error_msg:
-            # Evitamos duplicados en la lista visual
             nuevo_registro = {"nombre": nombre_elemento, "tipo": tipo_entrada.upper(), "enfoque": enfoque.upper()}
             if nuevo_registro not in session['historial']:
-                # Clonamos la lista para asegurar que Flask detecte la mutación de la sesión
                 lista_actual = list(session['historial'])
-                lista_actual.insert(0, nuevo_registro)  # Insertar al inicio
-                session['historial'] = lista_actual[:5]  # Mantener solo los últimos 5 para optimizar espacio
+                lista_actual.insert(0, nuevo_registro)  
+                session['historial'] = lista_actual[:5]  
                 session.modified = True
 
     return render_template("index.html", resumen=resumen_generado, tipo_entrada=tipo_entrada, error=error_msg, historial=session['historial'])
@@ -139,5 +131,14 @@ def limpiar_historial():
     session.modified = True
     return render_template("index.html", resumen=None, tipo_entrada="pdf", error=None, historial=[])
 
+# Rutas de soporte para la PWA (Service Worker y Manifest)
+@app.route('/sw.js')
+def serve_service_worker():
+    return send_from_directory('static', 'sw.js', mimetype='application/javascript')
+
+@app.route('/manifest.json')
+def serve_manifest():
+    return send_from_directory('.', 'manifest.json', mimetype='application/json')
+
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True, port=5000)

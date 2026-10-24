@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ResumBot - Dashboard Inteligente</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="manifest" href="/manifest.json">
 </head>
 <body>
 
@@ -40,6 +41,8 @@
                         <option value="legal">Ámbito Jurídico (Dictamen)</option>
                         <option value="gobierno">Gubernamental / Normativo</option>
                         <option value="medios">Prensa, Blogs y Foros</option>
+                        <option value="medios">TICS</option>
+                        
                     </select>
                 </div>
 
@@ -141,6 +144,16 @@
 
     </div>
 
+    <!-- 🚀 NUEVO MÓDULO AGREGADO: Pruebas de PWA y Características Nativas (Práctica 2.1) -->
+    <div style="position: fixed; bottom: 20px; right: 20px; background: #0f172a; border: 1px solid #1e293b; padding: 14px; border-radius: 12px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5); z-index: 1000; max-width: 320px;">
+        <h4 style="color: #f8fafc; margin: 0 0 8px 0; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em;">⚡ Práctica 2.1 (PWA Nativa)</h4>
+        <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+            <button onclick="solicitarPermisoNotificaciones()" style="flex: 1; padding: 6px 10px; background: #6366f1; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 0.75rem; font-weight: 600;">🔔 Activar Push</button>
+            <button onclick="activarCamaraNativa()" style="flex: 1; padding: 6px 10px; background: #10b981; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 0.75rem; font-weight: 600;">📷 Abrir Cámara</button>
+        </div>
+        <video id="preview-camara" autoplay playsinline style="width: 100%; max-height: 150px; display: none; border-radius: 6px; border: 1px solid #334155; object-fit: cover;"></video>
+    </div>
+
     <script>
         function conmutarOrigen(origen) {
             document.getElementById('tipo_entrada').value = origen;
@@ -154,7 +167,7 @@
                 btnPdf.className = "tab-btn active";
                 btnUrl.className = "tab-btn";
                 boxPdf.style.display = 'block';
-                boxUrl.style.style.display = 'none';
+                boxUrl.style.display = 'none';
             } else {
                 btnUrl.className = "tab-btn active";
                 btnPdf.className = "tab-btn";
@@ -177,6 +190,60 @@
                 label.innerText = "¡Copiado con éxito!";
                 setTimeout(() => { label.innerText = "Copiar contenido"; }, 2000);
             });
+        }
+    </script>
+
+    <!-- Scripts originales del Service Worker + Funciones Nativas (Práctica 2.1) -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(reg => console.log('Service Worker registrado con éxito', reg))
+                    .catch(err => console.error('Error al registrar Service Worker', err));
+            });
+        }
+
+        // 2. Solicitud de Permiso y Notificación Push de Prueba
+        function solicitarPermisoNotificaciones() {
+            if (!('Notification' in window)) {
+                alert('Este navegador no soporta notificaciones.');
+                return;
+            }
+
+            Notification.requestPermission().then(permission => {
+                if (permission === 'granted') {
+                    navigator.serviceWorker.ready.then(reg => {
+                        reg.showNotification('ResumIA: Éxito 🚀', {
+                            body: '¡Notificaciones push configuradas correctamente para la práctica!',
+                            icon: '/static/icons/icon-192x192.png',
+                            vibrate: [100, 50, 100]
+                        });
+                    });
+                } else if (permission === 'denied') {
+                    alert('⚠️ Permiso denegado: Has bloqueado las notificaciones en el navegador.');
+                }
+            });
+        }
+
+        // 3 y 4. Acceso a Características Nativas (Cámara) y Manejo de Permisos
+        async function activarCamaraNativa() {
+            const videoElement = document.getElementById('preview-camara');
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: 'environment' } 
+                });
+
+                videoElement.style.display = 'block';
+                videoElement.srcObject = stream;
+            } catch (error) {
+                videoElement.style.display = 'none';
+                if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+                    alert('⚠️ Permiso denegado: No se pudo acceder a la cámara porque denegaste el acceso. Habilítalo en los ajustes del navegador.');
+                } else {
+                    alert('⚠️ Error al acceder a la cámara: ' + error.message);
+                }
+            }
         }
     </script>
 </body>
